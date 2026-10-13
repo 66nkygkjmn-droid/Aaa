@@ -5,63 +5,55 @@ exports.handler = async (event) => {
   if (!apiKey) {
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        error: "Chýba API kľúč v Netlify."
-      })
+      body: JSON.stringify({ error: "Chýba API kľúč v Netlify." })
     };
   }
 
-  const params = event.queryStringParameters || {};
-  const action = params.action || "fixtures";
-  const allowed = ["fixtures", "teams", "leagues"];
+  const p = event.queryStringParameters || {};
+  const action = p.action || "fixtures";
 
-  if (!allowed.includes(action)) {
+  const endpoints = {
+    teams: "teams",
+    leagues: "leagues",
+    fixtures: "fixtures",
+    headtohead: "fixtures/headtohead",
+    statistics: "fixtures/statistics"
+  };
+
+  if (!endpoints[action]) {
     return {
       statusCode: 400,
-      body: JSON.stringify({ error: "Neplatná požiadavka." })
+      body: JSON.stringify({ error: "Neplatná akcia." })
     };
   }
 
-  const query = new URLSearchParams();
+  const q = new URLSearchParams();
 
-  if (action === "fixtures") {
-    if (params.date) query.set("date", params.date);
-    if (params.league) query.set("league", params.league);
-    if (params.season) query.set("season", params.season);
-    if (params.team) query.set("team", params.team);
-    if (params.last) query.set("last", params.last);
-    if (params.next) query.set("next", params.next);
+  const allowedParams = {
+    teams: ["search", "id"],
+    leagues: ["search", "id", "season"],
+    fixtures: ["date", "league", "season", "team", "last", "next"],
+    headtohead: ["h2h", "last"],
+    statistics: ["fixture", "team"]
+  };
+
+  for (const key of allowedParams[action]) {
+    if (p[key]) q.set(key, p[key]);
   }
 
-  if (action === "teams") {
-    if (params.search) query.set("search", params.search);
-    if (params.id) query.set("id", params.id);
-  }
-
-  if (action === "leagues") {
-    if (params.search) query.set("search", params.search);
-    if (params.id) query.set("id", params.id);
-    if (params.season) query.set("season", params.season);
-  }
-
-  if (query.toString().length === 0) {
+  if (!q.toString()) {
     return {
       statusCode: 400,
-      body: JSON.stringify({
-        error: "Zadaj parametre vyhľadávania."
-      })
+      body: JSON.stringify({ error: "Chýbajú parametre." })
     };
   }
-
-  const url =
-    "https://v3.football.api-sports.io/" +
-    action + "?" + query.toString();
 
   try {
+    const url = "https://v3.football.api-sports.io/" +
+      endpoints[action] + "?" + q.toString();
+
     const response = await fetch(url, {
-      headers: {
-        "x-apisports-key": apiKey
-      }
+      headers: { "x-apisports-key": apiKey }
     });
 
     const data = await response.json();
@@ -78,7 +70,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 502,
       body: JSON.stringify({
-        error: "Nepodarilo sa načítať futbalové údaje."
+        error: "Nepodarilo sa načítať údaje."
       })
     };
   }
