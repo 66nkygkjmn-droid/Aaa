@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MatchScope">
+<title>MatchScope – futbalová analýza</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#141f31;--panel2:#1b2940;--text:#f4f7fb;--muted:#9eacc2;--line:#2a3a53;--accent:#71e0a3;--blue:#8ab4ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:env(safe-area-inset-top) 14px calc(24px + env(safe-area-inset-bottom))}
+header{padding:22px 4px 16px;display:flex;align-items:center;gap:12px}.logo{width:46px;height:46px;border-radius:14px;background:var(--accent);color:#092016;display:grid;place-items:center;font-size:25px;font-weight:900}h1{font-size:23px;margin:0;letter-spacing:-.5px}header p{margin:2px 0 0;color:var(--muted);font-size:12px;letter-spacing:1.2px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:15px;margin:12px 0}.panel h2{font-size:17px;margin:0 0 12px}.fieldlabel{display:block;color:var(--muted);font-size:12px;margin:8px 0 5px}
+input,select{width:100%;min-width:0;background:#0d1727;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px 10px;font:inherit}input[type=number]{padding:9px 6px;text-align:center}input::placeholder{color:#63738b}
+.teamgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.rowtitle{font-size:13px;color:var(--muted);margin:14px 0 7px}.match{background:#0e192a;border:1px solid var(--line);border-radius:13px;padding:11px;margin:9px 0}.matchhead{font-weight:700;font-size:13px;margin-bottom:9px;display:flex;justify-content:space-between;gap:8px}.matchhead small{color:var(--muted);font-weight:400}.statsgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.statlabel{display:block;font-size:10px;color:var(--muted);text-align:center;margin-bottom:4px}
+button{border:0;border-radius:12px;padding:13px 15px;font:inherit;font-weight:700;cursor:pointer}.primary{background:var(--accent);color:#092016;width:100%;margin-top:10px}.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.resultgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.metric{background:#0e192a;border:1px solid var(--line);border-radius:13px;padding:12px}.metric .name{color:var(--muted);font-size:12px}.metric .value{font-size:26px;font-weight:800;margin-top:4px}.metric .sub{font-size:11px;color:var(--muted);margin-top:3px}
+.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;border-bottom:1px solid var(--line);padding:9px 5px}th{color:var(--muted);font-weight:600}
+.note{font-size:12px;color:var(--muted);line-height:1.5}.pill{display:inline-block;border-radius:99px;padding:4px 8px;background:#203b30;color:var(--accent);font-size:11px;font-weight:700}.warning{border-left:3px solid #e6b35a;padding-left:10px}.hidden{display:none}.footer{text-align:center;color:var(--muted);font-size:11px;padding:14px 0}
+@media(min-width:600px){body{max-width:650px;margin:auto}.resultgrid{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<header><div class="logo">⚽</div><div><h1>MatchScope</h1><p>FOOTBALL MATCH ANALYTICS</p></div></header>
+
+<section class="panel">
+<h2>1. Vybraný zápas</h2>
+<div class="teamgrid">
+<div><label class="fieldlabel" for="teamA">Domáci tím</label><input id="teamA" placeholder="Napr. AS Roma"></div>
+<div><label class="fieldlabel" for="teamB">Hosťujúci tím</label><input id="teamB" placeholder="Napr. Lazio"></div>
+</div>
+<label class="fieldlabel" for="fixture">Dátum / súťaž (nepovinné)</label><input id="fixture" placeholder="Napr. Serie A – 25. 10.">
+<p class="note">Toto je prvá verzia: štatistiky zadáš podľa zdroja, ktorému dôveruješ. Aplikácia automaticky vypočíta priemery a trendy. Automatické sťahovanie zápasov doplníme v ďalšom kroku cez dátové API.</p>
+</section>
+
+<section class="panel">
+<h2>2. Posledných 5 zápasov – domáci tím</h2>
+<p class="note">Do každého riadka zadaj štatistiky vybraného tímu a jeho súpera v danom zápase.</p>
+<div id="teamAInputs"></div>
+</section>
+<section class="panel">
+<h2>3. Posledných 5 zápasov – hosťujúci tím</h2>
+<div id="teamBInputs"></div>
+</section>
+<section class="panel">
+<h2>4. Posledných 5 vzájomných zápasov</h2>
+<p class="note">Zadávaj štatistiky z pohľadu tímov vybraných vyššie, bez ohľadu na to, kto hral doma.</p>
+<div id="h2hInputs"></div>
+</section>
+
+<section class="panel">
+<h2>5. Analýza</h2>
+<div id="results" class="resultgrid">
+<div class="metric"><div class="name">Priemer rohov – tím A</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div>
+<div class="metric"><div class="name">Priemer rohov – tím B</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div>
+<div class="metric"><div class="name">Priemer kariet – tím A</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div>
+<div class="metric"><div class="name">Priemer kariet – tím B</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div>
+</div>
+<div id="summary" style="margin-top:12px"></div>
+<button class="primary" onclick="analyze()">Vypočítať analýzu</button>
+<div class="actions"><button class="secondary" onclick="saveData()">Uložiť údaje</button><button class="secondary" onclick="clearData()">Vymazať údaje</button></div>
+<p class="note warning" style="margin-top:13px">Výsledky sú opisom zadaných historických údajov, nie zárukou budúceho vývoja ani istým tipom na stávku. Over, či zdroj počíta žlté a červené karty rovnakým spôsobom.</p>
+</section>
+<div class="footer">MatchScope · osobný analytický nástroj · údaje sa ukladajú v tomto prehliadači</div>
+<script>
+const metrics = [
+ {key:'gf', label:'Góly tímu', short:'Góly'},
+ {key:'ga', label:'Góly súpera', short:'Súper góly'},
+ {key:'cf', label:'Rohy tímu', short:'Rohy'},
+ {key:'ca', label:'Rohy súpera', short:'Súper rohy'},
+ {key:'yf', label:'Karty tímu', short:'Karty'},
+ {key:'ya', label:'Karty súpera', short:'Súper karty'}
+];
+function makeMatches(containerId,prefix,count,mode){
+ const host=document.getElementById(containerId);
+ for(let i=1;i<=count;i++){
+  const card=document.createElement('div');card.className='match';
+  const title=mode==='h2h'?`Vzájomný zápas ${i}`:`Zápas ${i}`;
+  card.innerHTML=`<div class="matchhead"><span>${title}</span><small>${mode==='h2h'?'Tím A / tím B':'Tím / súper'}</small></div>
+  <label class="fieldlabel">Súper / poznámka (nepovinné)</label><input id="${prefix}${i}_op" placeholder="Názov súpera alebo výsledok">
+  <div class="statsgrid">${metrics.map(m=>`<div><label class="statlabel" for="${prefix}${i}_${m.key}">${m.short}</label><input type="number" min="0" max="99" step="1" inputmode="numeric" id="${prefix}${i}_${m.key}" placeholder="–"></div>`).join('')}</div>`;
+  host.appendChild(card);
+ }
+}
+makeMatches('teamAInputs','a',5,'team');
+makeMatches('teamBInputs','b',5,'team');
+makeMatches('h2hInputs','h',5,'h2h');
+function val(id){const x=document.getElementById(id).value.trim();return x===''?null:Number(x)}
+function average(arr){const v=arr.filter(x=>x!==null&&!Number.isNaN(x));return v.length?{avg:v.reduce((a,b)=>a+b,0)/v.length,n:v.length}:null}
+function fmt(x){return x===null?'—':x.toFixed(1)}
+function collect(prefix,count){
+ const rows=[];
+ for(let i=1;i<=count;i++){
+  const row={op:document.getElementById(`${prefix}${i}_op`).value};
+  metrics.forEach(m=>row[m.key]=val(`${prefix}${i}_${m.key}`));
+  rows.push(row);
+ }
+ return rows;
+}
+function analyze(){
+ const A=collect('a',5),B=collect('b',5),H=collect('h',5);
+ const stats=(rows,key)=>average(rows.map(r=>r[key]));
+ const Acorner=stats(A,'cf'),Bcorner=stats(B,'cf'),Acard=stats(A,'yf'),Bcard=stats(B,'yf');
+ const items=[
+  ['Priemer rohov – tím A',Acorner],['Priemer rohov – tím B',Bcorner],
+  ['Priemer kariet – tím A',Acard],['Priemer kariet – tím B',Bcard],
+  ['Priemer gólov – tím A',stats(A,'gf')],['Priemer gólov – tím B',stats(B,'gf')],
+  ['Priemer rohov spolu – vzájomné',average(H.map(r=>r.cf===null||r.ca===null?null:r.cf+r.ca))],
+  ['Priemer kariet spolu – vzájomné',average(H.map(r=>r.yf===null||r.ya===null?null:r.yf+r.ya))]
+ ];
+ document.getElementById('results').innerHTML=items.map(([name,obj])=>`<div class="metric"><div class="name">${name}</div><div class="value">${obj?fmt(obj.avg):'—'}</div><div class="sub">${obj?`Z ${obj.n} zadaných hodnôt`:'Doplň štatistiky'}</div></div>`).join('');
+ const aName=document.getElementById('teamA').value.trim()||'Tím A',bName=document.getElementById('teamB').value.trim()||'Tím B';
+ const hCorners=average(H.map(r=>r.cf===null||r.ca===null?null:r.cf+r.ca));
+ const hCards=average(H.map(r=>r.yf===null||r.ya===null?null:r.yf+r.ya));
+ const totalA=average(A.map(r=>r.cf===null||r.ca===null?null:r.cf+r.ca));
+ const totalB=average(B.map(r=>r.cf===null||r.ca===null?null:r.cf+r.ca));
+ let text=`<div class="panel" style="margin:0;background:#0e192a"><h2>Rýchly súhrn</h2><p><span class="pill">${aName}</span> priemer ${Acorner?fmt(Acorner.avg):'—'} rohov za zápas a ${Acard?fmt(Acard.avg):'—'} kariet tímu za zápas.</p><p><span class="pill">${bName}</span> priemer ${Bcorner?fmt(Bcorner.avg):'—'} rohov za zápas a ${Bcard?fmt(Bcard.avg):'—'} kariet tímu za zápas.</p><p>Priemerný celkový počet rohov v zápasoch ${aName}: ${totalA?fmt(totalA.avg):'—'}; ${bName}: ${totalB?fmt(totalB.avg):'—'}.</p><p>Vzájomné zápasy – priemer rohov spolu: ${hCorners?fmt(hCorners.avg):'—'}, kariet spolu: ${hCards?fmt(hCards.avg):'—'}.</p><p class="note">Priemer sa počíta iba z vyplnených hodnôt. Chýbajúce údaje sa nepovažujú za nulu.</p></div>`;
+ document.getElementById('summary').innerHTML=text;
+ saveData(false);
+}
+function allFields(){return [...document.querySelectorAll('input')]}
+function saveData(show=true){
+ const data={};allFields().forEach(el=>data[el.id]=el.value);
+ try{localStorage.setItem('matchscope-data',JSON.stringify(data));if(show)alert('Údaje uložené v tomto prehliadači.');}catch(e){if(show)alert('Ukladanie nie je dostupné v tomto režime prehliadača.');}
+}
+function loadData(){
+ try{const data=JSON.parse(localStorage.getItem('matchscope-data')||'{}');Object.keys(data).forEach(id=>{const el=document.getElementById(id);if(el)el.value=data[id]})}catch(e){}
+}
+function clearData(){if(!confirm('Naozaj vymazať všetky zadané údaje?'))return;localStorage.removeItem('matchscope-data');allFields().forEach(el=>el.value='');document.getElementById('summary').innerHTML='';document.getElementById('results').innerHTML='<div class="metric"><div class="name">Priemer rohov – tím A</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div><div class="metric"><div class="name">Priemer rohov – tím B</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div><div class="metric"><div class="name">Priemer kariet – tím A</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div><div class="metric"><div class="name">Priemer kariet – tím B</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div>'}
+loadData();
+</script>
+</body>
+</html>
