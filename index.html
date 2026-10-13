@@ -32,7 +32,18 @@ button{border:0;border-radius:12px;padding:13px 15px;font:inherit;font-weight:70
 <div><label class="fieldlabel" for="teamB">Hosťujúci tím</label><input id="teamB" placeholder="Napr. Lazio"></div>
 </div>
 <label class="fieldlabel" for="fixture">Dátum / súťaž (nepovinné)</label><input id="fixture" placeholder="Napr. Serie A – 25. 10.">
-<p class="note">Toto je prvá verzia: štatistiky zadáš podľa zdroja, ktorému dôveruješ. Aplikácia automaticky vypočíta priemery a trendy. Automatické sťahovanie zápasov doplníme v ďalšom kroku cez dátové API.</p>
+<div class="teamgrid">
+  <button class="secondary" style="width:100%;margin-top:8px" onclick="searchTeam('A')">Vyhľadať domáci tím</button>
+  <button class="secondary" style="width:100%;margin-top:8px" onclick="searchTeam('B')">Vyhľadať hosťujúci tím</button>
+</div>
+
+<div id="teamAChoices"></div>
+<div id="teamBChoices"></div>
+
+<button class="primary" onclick="loadAutomaticData()">Načítať posledných 5 zápasov</button>
+
+<p id="apiStatus" class="note" style="margin-top:10px">Najprv vyhľadaj a vyber oba tímy.</p>
+<p class="note">Štatistiky sa načítajú iba vtedy, keď ich dátové API poskytuje. Chýbajúce údaje zostanú prázdne.</p>
 </section>
 
 <section class="panel">
