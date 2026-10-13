@@ -140,7 +140,268 @@ function loadData(){
  try{const data=JSON.parse(localStorage.getItem('matchscope-data')||'{}');Object.keys(data).forEach(id=>{const el=document.getElementById(id);if(el)el.value=data[id]})}catch(e){}
 }
 function clearData(){if(!confirm('Naozaj vymazať všetky zadané údaje?'))return;localStorage.removeItem('matchscope-data');allFields().forEach(el=>el.value='');document.getElementById('summary').innerHTML='';document.getElementById('results').innerHTML='<div class="metric"><div class="name">Priemer rohov – tím A</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div><div class="metric"><div class="name">Priemer rohov – tím B</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div><div class="metric"><div class="name">Priemer kariet – tím A</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div><div class="metric"><div class="name">Priemer kariet – tím B</div><div class="value">—</div><div class="sub">Za 5 zápasov</div></div>'}
-loadData();
+ let selectedTeamA = null;
+let selectedTeamB = null;
+
+async function apiRequest(params) {
+  const query = new URLSearchParams(params);
+  const response = await fetch(
+    `/.netlify/functions/football?${query.toString()}`
+  );
+  const data = await response.json();
+
+  if (!response.ok || data.errors?.length) {
+    throw new Error("API nedokázalo načítať údaje.");
+  }
+
+  return data;
+}
+
+async function searchTeam(which) {
+  const inputId = which === "A" ? "teamA" : "teamB";
+  const choicesId = which === "A" ? "teamAChoices" : "teamBChoices";
+  const input = document.getElementById(inputId);
+  const name = input.value.trim();
+  const choices = document.getElementById(choicesId);
+
+  if (!name) {
+    alert("Najprv napíš názov tímu.");
+    input.focus();
+    return;
+  }
+
+  choices.textContent = "Vyhľadávam tímy…";
+
+  try {
+    const data = await apiRequest({
+      action: "teams",
+      search: name
+    });
+
+    choices.replaceChildren();
+
+    const teams = (data.response || []).slice(0, 10);
+
+    if (!teams.length) {
+      choices.textContent = "Tím sa nenašiel. Skús iný názov.";
+      return;
+    }
+
+    const title = document.createElement("p");
+    title.className = "note";
+    title.textContent = "Vyber správny tím:";
+    choices.appendChild(title);
+
+    teams.forEach(item => {
+      const team = item.team;
+      const button = document.createElement("button");
+      button.className = "secondary";
+      button.style.width = "100%";
+      button.style.marginBottom = "6px";
+      button.textContent =
+        team.name + " · " + (team.country || "Neznáma krajina");
+
+      button.onclick = () => {
+        input.value = team.name;
+
+        if (which === "A") {
+          selectedTeamA = team;
+        } else {
+          selectedTeamB = team;
+        }
+
+        choices.replaceChildren();
+        const selected = document.createElement("p");
+        selected.className = "note";
+        selected.textContent = "Vybraný tím: " + team.name;
+        choices.appendChild(selected);
+      };
+
+      choices.appendChild(button);
+    });
+  } catch (error) {
+    choices.textContent =
+      "Chyba pri vyhľadávaní. Skontroluj internet a skús znova.";
+  }
+}
+
+function setField(prefix, index, key, value) {
+  document.getElementById(`${prefix}${index}_${key}`).value =
+    value === null || value === undefined ? "" : value;
+}
+
+function statNumber(statistics, type) {
+  const item = statistics.find(s => s.type === type);
+  if (!item || item.value === null || item.value === undefined) {
+    return null;
+  }
+
+  const value = Number(item.value);
+  return Number.isFinite(value) ? value : null;
+}
+
+function cardTotal(statistics) {
+  const yellow = statNumber(statistics, "Yellow Cards");
+  const red = statNumber(statistics, "Red Cards");
+
+  if (yellow === null && red === null) return null;
+  return (yellow || 0) + (red || 0);
+}
+
+async function fixtureStats(fixtureId, teamId) {
+  try {
+    const data = await apiRequest({
+      action: "statistics",
+      fixture: String(fixtureId)
+    });
+
+    const entry = (data.response || []).find(
+      item => item.team && item.team.id === teamId
+    );
+
+    if (!entry) {
+      return { corners: null, cards: null };
+    }
+
+    const stats = entry.statistics || [];
+
+    return {
+      corners: statNumber(stats, "Corner Kicks"),
+      cards: cardTotal(stats)
+    };
+  } catch (error) {
+    return { corners: null, cards: null };
+  }
+}
+
+function scoreText(fixture) {
+  const home = fixture.teams.home.name;
+  const away = fixture.teams.away.name;
+  const hg = fixture.goals.home;
+  const ag = fixture.goals.away;
+
+  if (hg === null || ag === null) return `${home} – ${away}`;
+  return `${home} ${hg}–${ag} ${away}`;
+}
+
+async function fillTeamMatches(team, prefix) {
+  const data = await apiRequest({
+    action: "fixtures",
+    team: String(team.id),
+    last: "5"
+  });
+
+  const matches = data.response || [];
+
+  for (let i = 1; i <= 5; i++) {
+    ["gf", "ga", "cf", "ca", "yf", "ya"].forEach(key =>
+      setField(prefix, i, key, null)
+    );
+    setField(prefix, i, "op", "");
+  }
+
+  for (let i = 0; i < Math.min(5, matches.length); i++) {
+    const fixture = matches[i];
+    const home = fixture.teams.home;
+    const away = fixture.teams.away;
+    const isHome = home.id === team.id;
+    const opponent = isHome ? away : home;
+    const ownGoals = isHome ? fixture.goals.home : fixture.goals.away;
+    const oppGoals = isHome ? fixture.goals.away : fixture.goals.home;
+    const index = i + 1;
+
+    setField(prefix, index, "op", scoreText(fixture));
+    setField(prefix, index, "gf", ownGoals);
+    setField(prefix, index, "ga", oppGoals);
+
+    const ownStats = await fixtureStats(fixture.fixture.id, team.id);
+    const oppStats = await fixtureStats(fixture.fixture.id, opponent.id);
+
+    setField(prefix, index, "cf", ownStats.corners);
+    setField(prefix, index, "ca", oppStats.corners);
+    setField(prefix, index, "yf", ownStats.cards);
+    setField(prefix, index, "ya", oppStats.cards);
+  }
+
+  return matches.length;
+}
+
+async function fillHeadToHead(teamA, teamB) {
+  const data = await apiRequest({
+    action: "headtohead",
+    h2h: `${teamA.id}-${teamB.id}`,
+    last: "5"
+  });
+
+  const matches = data.response || [];
+
+  for (let i = 1; i <= 5; i++) {
+    ["gf", "ga", "cf", "ca", "yf", "ya"].forEach(key =>
+      setField("h", i, key, null)
+    );
+    setField("h", i, "op", "");
+  }
+
+  for (let i = 0; i < Math.min(5, matches.length); i++) {
+    const fixture = matches[i];
+    const home = fixture.teams.home;
+    const away = fixture.teams.away;
+    const index = i + 1;
+
+    const goalsA = home.id === teamA.id
+      ? fixture.goals.home : fixture.goals.away;
+    const goalsB = home.id === teamB.id
+      ? fixture.goals.home : fixture.goals.away;
+
+    setField("h", index, "op", scoreText(fixture));
+    setField("h", index, "gf", goalsA);
+    setField("h", index, "ga", goalsB);
+
+    const statsA = await fixtureStats(fixture.fixture.id, teamA.id);
+    const statsB = await fixtureStats(fixture.fixture.id, teamB.id);
+
+    setField("h", index, "cf", statsA.corners);
+    setField("h", index, "ca", statsB.corners);
+    setField("h", index, "yf", statsA.cards);
+    setField("h", index, "ya", statsB.cards);
+  }
+
+  return matches.length;
+}
+
+async function loadAutomaticData() {
+  const status = document.getElementById("apiStatus");
+
+  if (!selectedTeamA || !selectedTeamB) {
+    status.textContent =
+      "Najprv vyhľadaj a vyber oba tímy pomocou tlačidiel vyššie.";
+    return;
+  }
+
+  if (selectedTeamA.id === selectedTeamB.id) {
+    status.textContent = "Vyber dva rôzne tímy.";
+    return;
+  }
+
+  status.textContent = "Načítavam zápasy a štatistiky. Môže to chvíľu trvať…";
+
+  try {
+    const [countA, countB, countH] = await Promise.all([
+      fillTeamMatches(selectedTeamA, "a"),
+      fillTeamMatches(selectedTeamB, "b"),
+      fillHeadToHead(selectedTeamA, selectedTeamB)
+    ]);
+
+    analyze();
+
+    status.textContent =
+      `Hotovo! Zápasy načítané: ${selectedTeamA.name} (${countA}), ` +
+      `${selectedTeamB.name} (${countB}), vzájomné (${countH}). ` +
+      "Niektoré štatistiky môžu chýbať, ak ich API neposkytuje.";
+  } catch (error) {
+    status.textContent =
+      "Načítanie zlyhalo. Skontroluj nasadenie Netlify a skús znova.";  }
+} loadData();
 </script>
 </body>
 </html>
